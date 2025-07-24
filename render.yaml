@@ -8,6 +8,12 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      - key: GEMINI_API_KEY
+        fromGroup: env
+      - key: FLASK_SECRET_KEY
+        fromGroup: env
+      - key: FLASK_ENV
+        value: production
 
   - name: ytbuddy1-client
     type: web
