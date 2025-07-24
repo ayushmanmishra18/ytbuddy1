@@ -21,6 +21,5 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: ./client/dist
     envVars:
-      - key: VITE_API_URL
-        value: https://ytbuddy1.onrender.com
-        
+  - key: VITE_API_URL
+    value: https://ytbuddy1.onrender.com  # Your backend URL
