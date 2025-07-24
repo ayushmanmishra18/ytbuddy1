@@ -59,9 +59,32 @@ async def ask_question(request: Request):
         # Get answer from QA system
         answer = get_answer(video_id, question)
         
+        # Format response based on answer type
+        if "Based on the video:" in answer and "Beyond the video:" in answer:
+            response_data = {
+                "type": "beyond",
+                "transcript_answer": answer.split("Based on the video:")[1].split("Beyond the video:")[0].strip(),
+                "general_answer": answer.split("Beyond the video:")[1].strip()
+            }
+        elif "Based on the video:" in answer:
+            response_data = {
+                "type": "default",
+                "answer": answer.replace("Based on the video:", "").strip()
+            }
+        elif "Answer:" in answer:
+            response_data = {
+                "type": "buddy",
+                "answer": answer.replace("Answer:", "").strip()
+            }
+        else:
+            response_data = {
+                "type": "default",
+                "answer": answer
+            }
+        
         return {
             "status": "success",
-            "answer": answer,
+            "data": response_data,
             "video_id": video_id,
             "generated_at": datetime.now().isoformat()
         }

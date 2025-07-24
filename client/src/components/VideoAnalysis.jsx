@@ -25,7 +25,10 @@ const VideoAnalysis = ({ videoData, onBack }) => {
         <AlertCircle className="h-8 w-8 text-red-500" />
         <p className="mt-4 text-gray-600">No analysis data available</p>
         <button 
-          onClick={onBack}
+          onClick={() => {
+            localStorage.removeItem('videoAnalysisState');
+            onBack();
+          }}
           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           Try Another Video
@@ -36,6 +39,7 @@ const VideoAnalysis = ({ videoData, onBack }) => {
 
   const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState('summary');
+  const [activeMode, setActiveMode] = useState('default');
   const [chatMessages, setChatMessages] = useState([
     {
       type: 'bot',
@@ -47,6 +51,24 @@ const VideoAnalysis = ({ videoData, onBack }) => {
   const [copiedItem, setCopiedItem] = useState(null);
   const chatEndRef = useRef(null);
   const playerRef = useRef(null);
+
+  const modeInfo = {
+    default: {
+      title: 'Transcript Mode',
+      description: 'Answers strictly from video content',
+      example: 'What does the video say about...?'
+    },
+    buddy: {
+      title: 'Buddy Mode',
+      description: 'General knowledge answers (ignores transcript)',
+      example: 'Hey buddy, tell me about...'
+    },
+    beyond: {
+      title: 'Beyond Mode',
+      description: 'Transcript answer + general knowledge',
+      example: 'Beyond the transcript, explain...'
+    }
+  };
 
   const handleCopy = (text, itemType) => {
     navigator.clipboard.writeText(text);
@@ -102,49 +124,58 @@ const VideoAnalysis = ({ videoData, onBack }) => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  const handleQuestionSubmit = async (e) => {
-    e.preventDefault();
+  const handleSendMessage = async () => {
+    if (!chatInput.trim()) return;
     
-    if (!chatInput?.trim()) {
-      setChatMessages(prev => [...prev, {
-        type: 'error',
-        message: 'Please enter a valid question'
-      }]);
-      return;
-    }
-
-    const newMessage = {
+    const userMessage = {
       type: 'user',
       message: chatInput,
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: new Date()
     };
-
-    setChatMessages(prev => [...prev, newMessage]);
+    
+    setChatMessages(prev => [...prev, userMessage]);
     setChatInput('');
     
     try {
       const response = await askQuestion({
-        video_id: videoData.video_id, 
+        video_id: videoData.video_id,
         question: chatInput
       });
       
-      setChatMessages(prev => [
-        ...prev,
-        {
+      let botMessages = [];
+      
+      if (response.data.type === 'beyond') {
+        botMessages = [
+          {
+            type: 'bot',
+            message: response.data.transcript_answer,
+            timestamp: new Date(),
+            mode: 'default'
+          },
+          {
+            type: 'bot',
+            message: response.data.general_answer,
+            timestamp: new Date(),
+            mode: 'beyond'
+          }
+        ];
+      } else {
+        botMessages = [{
           type: 'bot',
-          message: response.answer,
-          timestamp: new Date().toLocaleTimeString()
-        }
-      ]);
+          message: response.data.answer,
+          timestamp: new Date(),
+          mode: response.data.type
+        }];
+      }
+      
+      setChatMessages(prev => [...prev, ...botMessages]);
     } catch (error) {
-      setChatMessages(prev => [
-        ...prev,
-        {
-          type: 'bot',
-          message: 'Sorry, I encountered an error answering your question.',
-          timestamp: new Date().toLocaleTimeString()
-        }
-      ]);
+      console.error('Error asking question:', error);
+      setChatMessages(prev => [...prev, {
+        type: 'bot',
+        message: 'Sorry, I couldn\'t process your question right now.',
+        timestamp: new Date()
+      }]);
     }
   };
 
@@ -177,7 +208,10 @@ const VideoAnalysis = ({ videoData, onBack }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-between mb-6">
           <button 
-            onClick={onBack}
+            onClick={() => {
+              localStorage.removeItem('videoAnalysisState');
+              onBack();
+            }}
             className="flex items-center text-gray-600 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
           >
             <ArrowLeft className="mr-2" /> Back
@@ -328,7 +362,32 @@ const VideoAnalysis = ({ videoData, onBack }) => {
               </div>
 
               <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4">
-                <form onSubmit={handleQuestionSubmit} className="flex gap-2">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">Mode</h4>
+                    <div className="flex space-x-2">
+                      {Object.keys(modeInfo).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => setActiveMode(mode)}
+                          className={`px-4 py-2 rounded-lg text-sm ${
+                            activeMode === mode
+                              ? 'bg-orange-500 text-white shadow-md'
+                              : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors'
+                          }`}
+                        >
+                          {modeInfo[mode].title}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">Hint</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{modeInfo[activeMode].description}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Example: {modeInfo[activeMode].example}</p>
+                  </div>
+                </div>
+                <form onSubmit={(e) => {e.preventDefault(); handleSendMessage()}} className="flex gap-2">
                   <input
                     type="text"
                     value={chatInput}
