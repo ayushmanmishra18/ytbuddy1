@@ -19,7 +19,7 @@ services:
     type: web
     runtime: node
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    staticPublishPath: /dist
     envVars:
       - key: VITE_API_URL
         value: https://ytbuddy1-server.onrender.com
