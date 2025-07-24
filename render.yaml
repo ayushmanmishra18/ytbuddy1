@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ytbuddy
+    runtime: python
+    buildCommand: pip install -r server/requirements.txt
+    startCommand: python server/main.py
+    envVars:
+      - key: YOUTUBE_API_KEY
+        fromGroup: env
+      - key: GEMINI_API_KEY
+        fromGroup: env
+      - key: FLASK_SECRET_KEY
+        fromGroup: env
+      - key: FLASK_ENV
+        value: production
