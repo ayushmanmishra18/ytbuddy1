@@ -74,25 +74,27 @@ def get_youtube_transcript(video_id: str) -> tuple[list, str]:
             raise ValueError("No English or Hindi transcript available")
 
 def get_manual_captions(video_id: str) -> Optional[str]:
-    """Fallback method to get manual captions when auto-transcript fails"""
+    """Fallback method with improved error handling"""
     try:
         youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-        video = pytube.YouTube(youtube_url)
         
-        # Check for manually created captions
-        caption = video.captions.get_by_language_code('en')
-        if caption:
-            return caption.generate_srt_captions()
-            
-        # If no manual captions, try to get auto-captions
-        caption = video.captions.get('a.en')
-        if caption:
-            return caption.generate_srt_captions()
-            
-        return None
+        # First try with OAuth
+        try:
+            video = pytube.YouTube(youtube_url, use_oauth=True, allow_oauth_cache=True)
+            caption = video.captions.get_by_language_code('en') or video.captions.get('a.en')
+            if caption:
+                return caption.generate_srt_captions()
+        except Exception as oauth_error:
+            logger.warning(f"OAuth attempt failed: {str(oauth_error)}")
+        
+        # Fallback to non-OAuth
+        video = pytube.YouTube(youtube_url)
+        caption = video.captions.get_by_language_code('en') or video.captions.get('a.en')
+        return caption.generate_srt_captions() if caption else None
+        
     except Exception as e:
-        logger.error(f"Manual caption fetch failed: {str(e)}")
-        raise
+        logger.error(f"Manual caption fetch failed: {str(e)}", exc_info=True)
+        return None
 
 def get_transcript(url: str) -> tuple[str, str]:
     global LAST_REQUEST_TIME

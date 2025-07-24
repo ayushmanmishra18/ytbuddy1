@@ -64,3 +64,18 @@ async def log_requests(request: Request, call_next):
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+@app.get("/debug/packages")
+async def debug_packages():
+    import youtube_transcript_api
+    import pytube
+    return {
+        "youtube_transcript_api": {
+            "version": youtube_transcript_api.__version__,
+            "attributes": dir(youtube_transcript_api)
+        },
+        "pytube": {
+            "version": pytube.__version__,
+            "attributes": dir(pytube)
+        }
+    }
