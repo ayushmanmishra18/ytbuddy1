@@ -3,6 +3,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
 from urllib.parse import urlparse, parse_qs
 import time
 import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
 import pytube
 from typing import Optional, Tuple
 
@@ -59,6 +60,19 @@ def get_video_id(url: str) -> str:
     
     raise ValueError(f"Could not extract video ID from URL: {url}")
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+def get_youtube_transcript(video_id: str) -> tuple[list, str]:
+    """Get transcript with retry logic and language fallback"""
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        return transcript, 'en'
+    except NoTranscriptFound:
+        try:
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['hi'])
+            return transcript, 'hi'
+        except NoTranscriptFound:
+            raise ValueError("No English or Hindi transcript available")
+
 def get_manual_captions(video_id: str) -> Optional[str]:
     """Fallback method to get manual captions when auto-transcript fails"""
     try:
@@ -97,26 +111,16 @@ def get_transcript(url: str) -> tuple[str, str]:
         logging.info(f"Extracted video ID: {video_id}")
         
         try:
-            logging.debug(f"Attempting to fetch transcript for video {video_id}")
-            transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+            transcript_data, language = get_youtube_transcript(video_id)
             transcript = ' '.join([item['text'] for item in transcript_data])
-            logging.info(f"Successfully retrieved transcript with {len(transcript_data)} segments")
-            return transcript, 'en'
-        except NoTranscriptFound:
-            try:
-                logging.debug(f"Attempting to fetch Hindi transcript for video {video_id}")
-                transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['hi'])
-                transcript = ' '.join([item['text'] for item in transcript_data])
-                logging.info(f"Successfully retrieved Hindi transcript with {len(transcript_data)} segments")
-                return transcript, 'hi'
-            except Exception as e:
-                logging.error(f"Failed to fetch any transcript: {e}")
-                manual_captions = get_manual_captions(video_id)
-                if manual_captions:
-                    logging.info(f"Successfully retrieved manual captions for video {video_id}")
-                    return manual_captions, video_id
-                else:
-                    raise ValueError("No English or Hindi transcript available for this video")
+            logging.info(f"Successfully retrieved {language} transcript with {len(transcript_data)} segments")
+            return transcript, language
+        except ValueError as e:
+            manual_captions = get_manual_captions(video_id)
+            if manual_captions:
+                logging.info(f"Successfully retrieved manual captions for video {video_id}")
+                return manual_captions, 'en'
+            raise
     except ValueError as ve:
         logging.warning(f"Input validation error: {str(ve)}")
         raise ve
